@@ -35,9 +35,17 @@ class GradlePlugin : KotlinCompilerPluginSupportPlugin {
     override fun applyToCompilation(kotlinCompilation: KotlinCompilation<*>): Provider<List<SubpluginOption>> {
         val project = kotlinCompilation.target.project
 
-        // ALSO needed for the plugin classpath
+        // ALSO needed for the plugin classpath.
+        // `api` is only valid on the main compilation — test source sets are not consumable,
+        // so adding api there triggers a deprecation warning that will become an error in
+        // a future Kotlin release. Use `implementation` for non-main compilations.
+        val isMain = kotlinCompilation.compilationName == KotlinCompilation.MAIN_COMPILATION_NAME
         kotlinCompilation.dependencies {
-            api("io.exoquery:terpal-runtime:${BuildConfig.VERSION}")
+            if (isMain) {
+                api("io.exoquery:terpal-runtime:${BuildConfig.VERSION}")
+            } else {
+                implementation("io.exoquery:terpal-runtime:${BuildConfig.VERSION}")
+            }
         }
 
         return project.provider {
