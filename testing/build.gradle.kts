@@ -1,7 +1,7 @@
 plugins {
     id("io.exoquery.terpal-plugin")
     id("conventions-multiplatform")
-    kotlin("multiplatform") version "2.3.21"
+    kotlin("multiplatform") version "2.4.0"
 }
 
 kotlin {
@@ -25,7 +25,6 @@ kotlin {
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
     compilerOptions {
         freeCompilerArgs.addAll(
-            "-Xcontext-parameters",
             "-P",
             "plugin:io.exoquery.terpal-plugin:traceWrappers=true"
         )
