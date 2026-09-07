@@ -7,10 +7,11 @@ import org.jetbrains.kotlin.compiler.plugin.CompilerPluginRegistrar
 import org.jetbrains.kotlin.config.CompilerConfiguration
 import org.jetbrains.kotlin.compiler.plugin.ExperimentalCompilerApi
 import org.jetbrains.kotlin.config.CommonConfigurationKeys
+import org.jetbrains.kotlin.config.MessageCollectorAccess
 import kotlin.io.path.Path
 
 @AutoService(CompilerPluginRegistrar::class)
-@OptIn(ExperimentalCompilerApi::class)
+@OptIn(ExperimentalCompilerApi::class, MessageCollectorAccess::class)
 class Registrar : CompilerPluginRegistrar() {
     override val supportsK2: Boolean get() = true
 

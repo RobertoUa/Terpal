@@ -7,6 +7,7 @@ import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSourceLocation
 import org.jetbrains.kotlin.cli.common.messages.MessageCollector
 import org.jetbrains.kotlin.config.CommonConfigurationKeys
 import org.jetbrains.kotlin.config.CompilerConfiguration
+import org.jetbrains.kotlin.config.MessageCollectorAccess
 import org.jetbrains.kotlin.ir.IrElement
 import org.jetbrains.kotlin.ir.declarations.IrFile
 import org.jetbrains.kotlin.wasm.ir.source.location.SourceLocation
@@ -23,6 +24,7 @@ data class CompileLogger(val messageCollector: MessageCollector, val currentFile
     messageCollector.report(CompilerMessageSeverity.ERROR, msg, macroCallSite.location(currentFile.fileEntry))
 
   companion object {
+    @OptIn(MessageCollectorAccess::class)
     operator fun invoke(config: CompilerConfiguration, currentFile: IrFile, macroCallSite: IrElement) =
       config.get(CommonConfigurationKeys.MESSAGE_COLLECTOR_KEY, MessageCollector.NONE).let {
         CompileLogger(it, currentFile, macroCallSite)
