@@ -27,16 +27,21 @@ interface Interpolator<T, R>: ProtoInterpolator<T, R> {
 interface ProtoInterpolator<T, R> {
   companion object {
     fun <T> interlace(parts: List<String>, params: List<T>, empty: () -> T, lift: (String) -> T, combine: (T, T) -> T): T {
-      val partsIter = parts.iterator()
-      val paramsIter = params.iterator()
+      // Index-driven because the previous iterator form spun forever once parts
+      // ran out while params had not.
       var curr = empty()
-      while (partsIter.hasNext() || paramsIter.hasNext()) {
-        if (partsIter.hasNext()) {
-          curr = combine(curr, lift(partsIter.next()))
-          if (paramsIter.hasNext()) {
-            curr = combine(curr, paramsIter.next())
-          }
-        }
+      val n = parts.size
+      val m = params.size
+      var i = 0
+      while (i < n) {
+        curr = combine(curr, lift(parts[i]))
+        if (i < m) curr = combine(curr, params[i])
+        i++
+      }
+      // Surplus params still get folded in rather than dropped or hung on.
+      while (i < m) {
+        curr = combine(curr, params[i])
+        i++
       }
       return curr
     }

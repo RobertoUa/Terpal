@@ -30,8 +30,16 @@ inline fun <reified T> IrExpression.isSubclassOf(): Boolean {
 }
 
 fun IrType.superTypesRecursive(): List<IrType> {
-  val superTypes = superTypes()
-  return superTypes + superTypes.flatMap { it.superTypesRecursive() }.distinct()
+  // BFS, so nearest supertypes come first and each ancestor is walked once
+  // (the previous recursion re-walked every subtree per path to it).
+  val result = LinkedHashSet<IrType>()
+  val queue = ArrayDeque<IrType>()
+  queue.addAll(superTypes())
+  while (queue.isNotEmpty()) {
+    val t = queue.removeFirst()
+    if (result.add(t)) queue.addAll(t.superTypes())
+  }
+  return result.toList()
 }
 
 inline fun <reified T> IrType.isSubclassOf(): Boolean {

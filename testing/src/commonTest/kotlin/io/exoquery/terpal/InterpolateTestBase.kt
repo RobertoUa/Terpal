@@ -11,16 +11,16 @@ interface InterpolateTestBase {
 // character (which in this case we make into a "-") in order to easily understand what's happening.
 
 fun interlace(parts: List<String>, params: List<String>): String {
-  val a = parts.iterator()
-  val b = params.iterator()
   val out = StringBuilder()
-  while (a.hasNext() || b.hasNext()) {
-    if (a.hasNext()) {
-      out.append(a.next())
-      if (b.hasNext()) {
-        out.append(b.next())
-      }
-    }
+  var i = 0
+  while (i < parts.size) {
+    out.append(parts[i])
+    if (i < params.size) out.append(params[i])
+    i++
+  }
+  while (i < params.size) {
+    out.append(params[i])
+    i++
   }
   return out.toString()
 }
