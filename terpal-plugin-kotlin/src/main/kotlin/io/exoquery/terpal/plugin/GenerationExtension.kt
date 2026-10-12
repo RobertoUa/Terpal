@@ -6,18 +6,16 @@ import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
 import org.jetbrains.kotlin.cli.common.messages.MessageCollector
 import org.jetbrains.kotlin.config.CompilerConfiguration
 import org.jetbrains.kotlin.ir.declarations.IrModuleFragment
-import java.nio.file.Path
 
 class GenerationExtension(
     private val options: Options,
     private val config: CompilerConfiguration,
-    private val messages: MessageCollector,
-    private val projectDir: Path
+    private val messages: MessageCollector
 ) : IrGenerationExtension {
     override fun generate(moduleFragment: IrModuleFragment, pluginContext: IrPluginContext) {
         moduleFragment
             .transform(
-                VisitTransformExpressions(pluginContext, config, projectDir, options),
+                VisitTransformExpressions(pluginContext, config, options),
                 null
             )
     }

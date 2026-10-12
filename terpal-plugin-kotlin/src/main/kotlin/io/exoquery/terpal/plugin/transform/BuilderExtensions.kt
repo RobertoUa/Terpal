@@ -7,14 +7,20 @@ import org.jetbrains.kotlin.descriptors.DescriptorVisibilities
 import org.jetbrains.kotlin.descriptors.Modality
 import org.jetbrains.kotlin.ir.UNDEFINED_OFFSET
 import org.jetbrains.kotlin.ir.builders.declarations.buildFun
+import org.jetbrains.kotlin.ir.builders.declarations.buildVariable
+import org.jetbrains.kotlin.ir.builders.irBlock
 import org.jetbrains.kotlin.ir.builders.irBlockBody
 import org.jetbrains.kotlin.ir.builders.irCall
 import org.jetbrains.kotlin.ir.builders.irReturn
 import org.jetbrains.kotlin.ir.declarations.*
+import org.jetbrains.kotlin.ir.expressions.IrConst
 import org.jetbrains.kotlin.ir.expressions.IrExpression
 import org.jetbrains.kotlin.ir.expressions.IrFunctionExpression
+import org.jetbrains.kotlin.ir.expressions.IrGetObjectValue
+import org.jetbrains.kotlin.ir.expressions.IrGetValue
 import org.jetbrains.kotlin.ir.expressions.IrStatementOrigin
 import org.jetbrains.kotlin.ir.expressions.impl.IrFunctionExpressionImpl
+import org.jetbrains.kotlin.ir.expressions.impl.IrGetValueImpl
 import org.jetbrains.kotlin.ir.symbols.IrSimpleFunctionSymbol
 import org.jetbrains.kotlin.ir.symbols.IrSymbol
 import org.jetbrains.kotlin.ir.types.IrType
@@ -160,6 +166,26 @@ context(bc: BuilderContext) fun createLambdaClosure(functionBody: IrExpression, 
 
 
 
+
+/**
+ * The interpolator receiver is referenced by the backend call and by every `wrap` call, so anything that is not a plain
+ * read is evaluated once into a temporary. Callers must `deepCopyWithSymbols()` the returned reference at each use.
+ */
+fun stabilizeReceiver(expr: IrExpression, parent: IrDeclarationParent): Pair<IrExpression, IrVariable?> {
+  val isPlainRead = expr is IrGetObjectValue || expr is IrConst || (expr is IrGetValue && (expr.symbol.owner as? IrVariable)?.isVar != true)
+  if (isPlainRead) return expr to null
+  val temp = buildVariable(parent, expr.startOffset, expr.endOffset, IrDeclarationOrigin.IR_TEMPORARY_VARIABLE, Name.identifier("tmp_interpolator"), expr.type).apply {
+    initializer = expr
+  }
+  return IrGetValueImpl(expr.startOffset, expr.endOffset, temp.type, temp.symbol) to temp
+}
+
+context(bc: BuilderContext) fun withReceiverTemp(temp: IrVariable?, output: IrExpression): IrExpression =
+  if (temp == null) output
+  else bc.builder.irBlock(resultType = output.type) {
+    +temp
+    +output
+  }
 
 fun IrPluginContext.createIrBuilder(
   symbol: IrSymbol,

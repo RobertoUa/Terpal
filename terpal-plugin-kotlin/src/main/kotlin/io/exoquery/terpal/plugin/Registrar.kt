@@ -8,7 +8,6 @@ import org.jetbrains.kotlin.config.CompilerConfiguration
 import org.jetbrains.kotlin.compiler.plugin.ExperimentalCompilerApi
 import org.jetbrains.kotlin.config.CommonConfigurationKeys
 import org.jetbrains.kotlin.config.MessageCollectorAccess
-import kotlin.io.path.Path
 
 @AutoService(CompilerPluginRegistrar::class)
 @OptIn(ExperimentalCompilerApi::class, MessageCollectorAccess::class)
@@ -24,8 +23,7 @@ class Registrar : CompilerPluginRegistrar() {
               // erased. I am not sure why kotlin does this.
               Options(configuration),
               configuration,
-              configuration.getNotNull(CommonConfigurationKeys.MESSAGE_COLLECTOR_KEY),
-              Path(configuration.getNotNull(PROJECT_DIR_KEY))
+              configuration.getNotNull(CommonConfigurationKeys.MESSAGE_COLLECTOR_KEY)
             )
         )
     }

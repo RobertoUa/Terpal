@@ -14,12 +14,6 @@ class CliProcessor: CommandLineProcessor {
 
     override val pluginOptions: Collection<CliOption> = listOf(
         CliOption(
-            optionName = "projectDir",
-            valueDescription = "path",
-            description = "root project path",
-            required = false,
-        ),
-        CliOption(
             optionName = "traceWrappers",
             valueDescription = "boolean",
             description = "trace auto-wrapping functions",
@@ -34,7 +28,6 @@ class CliProcessor: CommandLineProcessor {
     ) {
         return when (option.optionName) {
             OptionKeys.TraceWrappers.name -> configuration.put(OptionKeys.TraceWrappers.compilerKey, value.toBoolean())
-            "projectDir" -> configuration.put(PROJECT_DIR_KEY, value)
             else -> throw IllegalArgumentException("Unexpected config option ${option.optionName}")
         }
     }

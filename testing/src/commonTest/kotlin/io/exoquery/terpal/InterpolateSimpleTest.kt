@@ -68,6 +68,7 @@ class InterpolateSimpleTest: InterpolateTestBase {
     }
     println("====== `InterpolateTopLevelBatchingTest.exceptionTest2` message: ${ex.msg}")
     assertContains(ex.msg, "Error in spliced")
+    assertContains(ex.msg, " at io/exoquery/terpal/InterpolateSimpleTest.kt:")
   }
 
   @Test

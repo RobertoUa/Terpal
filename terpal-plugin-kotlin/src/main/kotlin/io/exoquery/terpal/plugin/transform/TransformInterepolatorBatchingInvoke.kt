@@ -21,6 +21,7 @@ import org.jetbrains.kotlin.ir.expressions.IrExpression
 import org.jetbrains.kotlin.ir.types.classOrNull
 import org.jetbrains.kotlin.ir.types.defaultType
 import org.jetbrains.kotlin.ir.util.dump
+import org.jetbrains.kotlin.ir.util.deepCopyWithSymbols
 import org.jetbrains.kotlin.ir.util.dumpKotlinLike
 
 class TransformInterepolatorBatchingInvoke(val ctx: BuilderContext) {
@@ -34,7 +35,7 @@ class TransformInterepolatorBatchingInvoke(val ctx: BuilderContext) {
   fun transform(expression: IrCall, superTransformer: VisitTransformExpressions): IrExpression {
     //val funSymbol = ctx.pluginCtx.symbolTable.referenceSimpleFunction(IdSignature.LocalSignature("param", null, null))
 
-    val (caller, compsRaw, funExpr) =
+    val (callerRaw, compsRaw, funExpr) =
       with(compileLogger) {
         on(expression).match(
           // interpolatorSubclass.invoke(.. { stuff } ...)
@@ -61,8 +62,9 @@ class TransformInterepolatorBatchingInvoke(val ctx: BuilderContext) {
     // before doing anything else need to run recursive transformations on the components because they could be
     // there could be nested interpolations e.g. stmt("foo_#{stmt("bar")}_baz")
     val comps = compsRaw.map { it.transform(superTransformer, null) }
+    val callerTransformed = callerRaw.transform(superTransformer, null)
 
-    val superTypes = caller.type.superTypesRecursive()
+    val superTypes = callerTransformed.type.superTypesRecursive()
 
     val parentCaller =
       // Need to find the most specific interpolator implementation because the less-specific one will have non-generics for their
@@ -100,6 +102,8 @@ class TransformInterepolatorBatchingInvoke(val ctx: BuilderContext) {
         return expression
       }
 
+      val (caller, callerTemp) = stabilizeReceiver(callerTransformed, currScope)
+
       // Wrap the parameters either in the correct wrapper-function from the Interpolator or an infix-wrapper or skip wrapping if it is not a subtype of InterpolatorWithWrapper
       val parametersWrapper = ParametersWrapper(
         interpolateTypeClass,
@@ -131,14 +135,14 @@ class TransformInterepolatorBatchingInvoke(val ctx: BuilderContext) {
 
 
       val callOutput =
-        caller.callMethodWithType("interpolate", interpolateReturn)(
+        caller.deepCopyWithSymbols().callMethodWithType("interpolate", interpolateReturn)(
           partsLiftedFun,
           paramsLiftedFun
         )
 
       //error("---------- Calling: \n ---------\n${callOutput.dumpKotlinLike()}")
 
-      callOutput
+      withReceiverTemp(callerTemp, callOutput)
     }
   }
 }

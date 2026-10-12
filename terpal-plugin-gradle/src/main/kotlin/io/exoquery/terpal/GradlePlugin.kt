@@ -48,10 +48,6 @@ class GradlePlugin : KotlinCompilerPluginSupportPlugin {
             }
         }
 
-        return project.provider {
-            listOf(
-                SubpluginOption("projectDir", project.projectDir.path)
-            )
-        }
+        return project.provider { emptyList() }
     }
 }

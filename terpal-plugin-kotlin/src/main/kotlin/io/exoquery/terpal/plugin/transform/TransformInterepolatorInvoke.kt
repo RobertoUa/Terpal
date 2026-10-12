@@ -14,7 +14,13 @@ import io.exoquery.terpal.plugin.trees.simpleTypeArgs
 import io.exoquery.terpal.plugin.trees.superTypesRecursive
 import org.jetbrains.kotlin.ir.builders.irGetObject
 import org.jetbrains.kotlin.ir.builders.irString
+import org.jetbrains.kotlin.ir.IrElement
 import org.jetbrains.kotlin.ir.declarations.IrDeclarationParent
+import org.jetbrains.kotlin.ir.declarations.IrFunction
+import org.jetbrains.kotlin.ir.declarations.IrSimpleFunction
+import org.jetbrains.kotlin.ir.visitors.IrVisitorVoid
+import org.jetbrains.kotlin.ir.visitors.acceptChildrenVoid
+import org.jetbrains.kotlin.ir.visitors.acceptVoid
 import org.jetbrains.kotlin.ir.expressions.IrCall
 import org.jetbrains.kotlin.ir.expressions.IrConst
 import org.jetbrains.kotlin.ir.expressions.IrConstKind
@@ -22,6 +28,7 @@ import org.jetbrains.kotlin.ir.expressions.IrExpression
 import org.jetbrains.kotlin.ir.symbols.IrClassSymbol
 import org.jetbrains.kotlin.ir.types.*
 import org.jetbrains.kotlin.ir.util.dump
+import org.jetbrains.kotlin.ir.util.deepCopyWithSymbols
 import org.jetbrains.kotlin.ir.util.dumpKotlinLike
 import org.jetbrains.kotlin.ir.util.functions
 
@@ -34,7 +41,7 @@ class TransformInterepolatorInvoke(val ctx: BuilderContext) {
     }
 
   fun transform(expression: IrCall, superTransformer: VisitTransformExpressions): IrExpression {
-    val (caller, compsRaw, specialReciever) =
+    val (callerRaw, compsRaw, specialReciever) =
       with(compileLogger) {
         on(expression).match(
           // interpolatorSubclass.invoke(.. { stuff } ...)
@@ -64,8 +71,9 @@ class TransformInterepolatorInvoke(val ctx: BuilderContext) {
     // before doing anything else need to run recursive transformations on the components because they could be
     // there could be nested interpolations e.g. stmt("foo_#{stmt("bar")}_baz")
     val comps = compsRaw.map { it.transform(superTransformer, null) }
+    val callerTransformed = callerRaw.transform(superTransformer, null)
 
-    val superTypes = caller.type.superTypesRecursive()
+    val superTypes = callerTransformed.type.superTypesRecursive()
 
     val parentCaller =
       // Need to find the most specific interpolator implementation because the less-specific one will have non-generics for their
@@ -106,6 +114,8 @@ class TransformInterepolatorInvoke(val ctx: BuilderContext) {
         return expression
       }
 
+      val (caller, callerTemp) = stabilizeReceiver(callerTransformed, currScope)
+
       val parametersWrapper = ParametersWrapper(
         interpolateTypeClass,
         interpolateType,
@@ -138,20 +148,20 @@ class TransformInterepolatorInvoke(val ctx: BuilderContext) {
         when (specialReciever) {
           // In a normal case just put in parts and params
           is Call.InterpolatorFunctionInvoke.SpecialReciever.DoesNotExist ->
-            caller.callMethodWithType(interpolatorBackend, interpolateReturn)(
+            caller.deepCopyWithSymbols().callMethodWithType(interpolatorBackend, interpolateReturn)(
               partsLiftedFun,
               paramsLiftedFun
             )
           // If there is a special reciever then treat that as a third parameter
           is Call.InterpolatorFunctionInvoke.SpecialReciever.Exists ->
-            caller.callMethodWithType(interpolatorBackend, interpolateReturn)(
+            caller.deepCopyWithSymbols().callMethodWithType(interpolatorBackend, interpolateReturn)(
               partsLiftedFun,
               paramsLiftedFun,
               specialReciever.reciever
             )
         }
 
-      callOutput
+      withReceiverTemp(callerTemp, callOutput)
     }
   }
 }
@@ -167,8 +177,35 @@ class ParametersWrapper(
 ) {
   fun wrapParams(params: List<IrExpression>) =
     params.withIndex().map { (i, comp) ->
+      rejectSuspendCalls(comp, i)
       wrapParameter(comp, i, params.size)
     }
+
+  // Params are evaluated lazily inside non-suspend lambdas, so a suspend call there would crash the JVM backend.
+  private fun rejectSuspendCalls(comp: IrExpression, i: Int) {
+    var suspendCall: IrCall? = null
+    comp.acceptVoid(object : IrVisitorVoid() {
+      override fun visitElement(element: IrElement) {
+        if (suspendCall == null) element.acceptChildrenVoid(this)
+      }
+      override fun visitFunction(declaration: IrFunction) {
+        if ((declaration as? IrSimpleFunction)?.isSuspend != true) super.visitFunction(declaration)
+      }
+      override fun visitCall(expression: IrCall) {
+        if (expression.symbol.owner.isSuspend) suspendCall = expression else super.visitCall(expression)
+      }
+    })
+    suspendCall?.let {
+      compileLogger.error(
+        """|The #${i} interpolated block calls the suspend function `${it.symbol.owner.name}`. Interpolated blocks are evaluated lazily outside of the coroutine,
+           |so assign the result to a val first e.g. `val v = ${it.symbol.owner.name}(...)` and interpolate `${'$'}v`.
+           |========= The faulty expression was: =========
+           |${comp.dumpKotlinLike()}
+        """.trimMargin()
+      )
+      abortTransform()
+    }
+  }
 
   // Create the factory that will wrap interpolated terms (if needed). There are some initialization steps in here but they are lazy.
   // this class should not do anything if there is nothing to wrap.

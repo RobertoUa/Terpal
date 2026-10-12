@@ -10,14 +10,12 @@ import org.jetbrains.kotlin.ir.declarations.*
 import org.jetbrains.kotlin.ir.expressions.*
 import org.jetbrains.kotlin.ir.types.IrSimpleType
 import org.jetbrains.kotlin.ir.types.IrType
-import java.nio.file.Path
 import org.jetbrains.kotlin.ir.util.*
 
 
 class VisitTransformExpressions(
   private val context: IrPluginContext,
   private val config: CompilerConfiguration,
-  private val projectDir: Path,
   private val options: Options
 ) : IrElementTransformerVoidWithContext() {
 

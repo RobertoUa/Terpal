@@ -46,7 +46,9 @@ fun wrapWithExceptionHandler(ctx: BuilderContext, expr: IrExpression, parent: Ir
     val codeIsApproximateExpr = ctx.builder.irBoolean(isApproximate)
     val termNumber = ctx.builder.irInt(spliceTermNumber + 1)
     val loc = expr.location(ctx.currentFile.fileEntry)
-    val locationPath = ctx.builder.irString("file://${loc.path}:${loc.line}:${loc.column}")
+    // Package-relative like a JVM stack trace; the absolute build path would leak into bytecode and runtime error messages.
+    val packagePath = ctx.currentFile.packageFqName.asString().replace('.', '/').let { if (it.isEmpty()) "" else "$it/" }
+    val locationPath = ctx.builder.irString("$packagePath${ctx.currentFile.fileEntry.name.substringAfterLast('/').substringAfterLast('\\')}:${loc.line}:${loc.column}")
     val totalTermsExpr = ctx.builder.irInt(totalTerms)
     return callGlobalMethod("io.exoquery.terpal", "wrapSplice")(locationPath, codeExpr, codeIsApproximateExpr, termNumber, totalTermsExpr, invokeCallLambda)
   }
@@ -88,7 +90,7 @@ class WrapperMaker(val ctx: BuilderContext, val caller: IrExpression, val interp
       val (invokeFunction, invokeCall) =
         // If there is a dispatch `wrap` function (i.e. defined directly in the interpolator class) then try to invoke that
         dispatchWrappers.find { it.isValidWrapFunction(interpolateType) && it.isWrapForExprType(expr) }?.let { dispatchFunction ->
-          dispatchFunction to caller.callMethodTyped(dispatchFunction)().invoke(expr)
+          dispatchFunction to caller.deepCopyWithSymbols().callMethodTyped(dispatchFunction)().invoke(expr)
         } ?: run {
           val subtypeWarnings = mutableListOf<String>()
 
@@ -110,7 +112,7 @@ class WrapperMaker(val ctx: BuilderContext, val caller: IrExpression, val interp
           // If there is no dispatch `wrap` function then try to find an extension `wrap` function
           possibleExtensionWrappers?.find { it.isValidWrapFunction(interpolateType) && it.isWrapForExprType(expr) }?.let { extensionFunction ->
             // I.e. in this case use the caller as the extension reciever
-            extensionFunction to callGlobalMethod(extensionFunction, caller)(expr)
+            extensionFunction to callGlobalMethod(extensionFunction, caller.deepCopyWithSymbols())(expr)
           }
           ?: Messages.errorFailedToFindWrapper(ctx, caller, expr, interpolateType,
             "(Also, no extension ${caller.type.classFqName ?: caller.type.dumpKotlinLike()}.wrap(${expr.type.classFqName ?: expr.type.dumpKotlinLike()}) function could be found in the package: ${parentPackageOpt}.)\n" +
@@ -131,7 +133,7 @@ class WrapperMaker(val ctx: BuilderContext, val caller: IrExpression, val interp
       val (invokeFunction, invokeCall) =
         // If there is a dispatch `wrap` function (i.e. defined directly in the interpolator class) then try to invoke that
         dispatchWrappers.find { it.isInlinedFunction(interpolateType) }?.let { dispatchFunction ->
-          dispatchFunction to caller.callMethodTyped(dispatchFunction)().invoke(expr)
+          dispatchFunction to caller.deepCopyWithSymbols().callMethodTyped(dispatchFunction)().invoke(expr)
         } ?:
           Messages.errorFailedToInterpolator(ctx, caller, expr)
 
