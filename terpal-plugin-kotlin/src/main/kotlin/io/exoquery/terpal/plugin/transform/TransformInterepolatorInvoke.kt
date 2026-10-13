@@ -222,7 +222,7 @@ class ParametersWrapper(
   private fun wrapParameter(comp: IrExpression, i: Int, totalParams: Int): IrExpression {
     val possiblyWrappedParam =
       // If the component is already the correct type then just return it
-      if (comp.type.classOrFail.isSubtypeOfClass(interpolateTypeClass)) {
+      if (comp.type.isSubtypeOfClass(interpolateTypeClass)) {
         comp
       } else {
         // If it is a string directly passed via the `inject` function then just return it

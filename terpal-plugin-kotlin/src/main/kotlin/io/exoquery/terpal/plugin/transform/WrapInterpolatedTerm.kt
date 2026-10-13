@@ -89,7 +89,7 @@ class WrapperMaker(val ctx: BuilderContext, val caller: IrExpression, val interp
 
       val (invokeFunction, invokeCall) =
         // If there is a dispatch `wrap` function (i.e. defined directly in the interpolator class) then try to invoke that
-        dispatchWrappers.find { it.isValidWrapFunction(interpolateType) && it.isWrapForExprType(expr) }?.let { dispatchFunction ->
+        dispatchWrappers.filter { it.isValidWrapFunction(interpolateType) && it.isWrapForExprType(expr) }.mostSpecificWrap()?.let { dispatchFunction ->
           dispatchFunction to caller.deepCopyWithSymbols().callMethodTyped(dispatchFunction)().invoke(expr)
         } ?: run {
           val subtypeWarnings = mutableListOf<String>()
@@ -110,7 +110,7 @@ class WrapperMaker(val ctx: BuilderContext, val caller: IrExpression, val interp
             useIt
           }
           // If there is no dispatch `wrap` function then try to find an extension `wrap` function
-          possibleExtensionWrappers?.find { it.isValidWrapFunction(interpolateType) && it.isWrapForExprType(expr) }?.let { extensionFunction ->
+          possibleExtensionWrappers?.asSequence()?.filter { it.isValidWrapFunction(interpolateType) && it.isWrapForExprType(expr) }?.mostSpecificWrap()?.let { extensionFunction ->
             // I.e. in this case use the caller as the extension reciever
             extensionFunction to callGlobalMethod(extensionFunction, caller.deepCopyWithSymbols())(expr)
           }
@@ -141,6 +141,15 @@ class WrapperMaker(val ctx: BuilderContext, val caller: IrExpression, val interp
       return invokeCall
     }
 
+}
+
+// Like Kotlin overload resolution, wrap(Sub) beats wrap(Super) regardless of declaration order; ambiguous cases keep the first declared.
+private fun Sequence<IrSimpleFunctionSymbol>.mostSpecificWrap(): IrSimpleFunctionSymbol? {
+  val candidates = toList()
+  fun IrSimpleFunctionSymbol.paramType() = owner.regularParams.first().type
+  return candidates.firstOrNull { c ->
+    candidates.all { o -> c == o || o.paramType().classOrNull?.let { c.paramType().isSubtypeOfClass(it) } == true }
+  } ?: candidates.firstOrNull()
 }
 
 fun IrSimpleFunctionSymbol.printInvokeFunctionSignature() =

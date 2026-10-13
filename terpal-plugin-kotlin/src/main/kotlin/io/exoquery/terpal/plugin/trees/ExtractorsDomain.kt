@@ -15,13 +15,16 @@ import org.jetbrains.kotlin.ir.expressions.IrConst
 import org.jetbrains.kotlin.ir.expressions.IrExpression
 import org.jetbrains.kotlin.ir.expressions.IrFunctionExpression
 import org.jetbrains.kotlin.ir.symbols.IrClassSymbol
+import org.jetbrains.kotlin.ir.types.IrSimpleType
 import org.jetbrains.kotlin.ir.types.IrType
 import org.jetbrains.kotlin.ir.types.classFqName
 import org.jetbrains.kotlin.ir.types.classOrNull
 import org.jetbrains.kotlin.ir.types.isSubtypeOfClass
+import org.jetbrains.kotlin.ir.types.typeOrNull
 import org.jetbrains.kotlin.ir.util.dumpKotlinLike
 import org.jetbrains.kotlin.ir.util.isObject
 import org.jetbrains.kotlin.ir.util.kotlinFqName
+import org.jetbrains.kotlin.ir.util.substitute
 import org.jetbrains.kotlin.ir.util.superTypes
 
 inline fun <reified T> IrExpression.isSubclassOf(): Boolean {
@@ -34,12 +37,20 @@ fun IrType.superTypesRecursive(): List<IrType> {
   // (the previous recursion re-walked every subtree per path to it).
   val result = LinkedHashSet<IrType>()
   val queue = ArrayDeque<IrType>()
-  queue.addAll(superTypes())
+  queue.addAll(substitutedSuperTypes())
   while (queue.isNotEmpty()) {
     val t = queue.removeFirst()
-    if (result.add(t)) queue.addAll(t.superTypes())
+    if (result.add(t)) queue.addAll(t.substitutedSuperTypes())
   }
   return result.toList()
+}
+
+// So `Base<T>: Interpolator<T, R>` seen from `Sub: Base<PIn>` yields Interpolator<PIn, R> instead of Interpolator<T, R>.
+private fun IrType.substitutedSuperTypes(): List<IrType> {
+  val owner = classOrNull?.owner ?: return superTypes()
+  val args = (this as? IrSimpleType)?.arguments.orEmpty()
+  val substitution = owner.typeParameters.zip(args).mapNotNull { (param, arg) -> arg.typeOrNull?.let { param.symbol to it } }.toMap()
+  return owner.superTypes.map { it.substitute(substitution) }
 }
 
 inline fun <reified T> IrType.isSubclassOf(): Boolean {

@@ -64,7 +64,7 @@ class VisitTransformExpressions(
       } catch (e: AbortTransform) {
         expression
       } catch (e: Exception) {
-        compileLogger.error("Error transforming expression: ${e.message}")
+        compileLogger.error("Error transforming expression: ${e.stackTraceToString()}")
         expression
       }
 

@@ -2,10 +2,6 @@ package io.exoquery.terpal
 
 object Messages {
 
-fun foo() {
-  println("hello")
-}
-
 val PluginWasNotExecuted =
 """
 The Terpal plugin did not transform the Interpolator.invoke method into the Interpolator.interpolate method.
